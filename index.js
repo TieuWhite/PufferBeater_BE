@@ -3,71 +3,74 @@ const express = require("express");
 const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
 const cors = require("cors");
-const Word = require("./src/models/Word");
-const WebSocket = require("ws");
 const http = require("http");
+const { Server } = require("socket.io");
+const Word = require("./src/models/Word"); // Ensure the Word model exists
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ port: 8080 });
 app.use(cors());
-app.use(bodyParser.json());
+app.use(bodyParser());
 
-let clients = [];
-let gameStarted = false;
+const io = require("socket.io")(server, {
+  cors: {
+    origin: "*", // Allow all origins for development
+  },
+});
+
+let player1 = null;
+let player2 = null;
 
 function broadcastPlayerStatus() {
-  const statuses = clients.map((_, index) => ({
-    playerNumber: index + 1,
-    connected: true,
-  }));
-
-  clients.forEach((client) => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify({ type: "playerStatus", statuses }));
-    }
+  io.emit("playerStatus", {
+    player1: player1 !== null,
+    player2: player2 !== null,
   });
 }
 
-wss.on("connection", (ws) => {
-  const playerIndex = clients.length;
-  clients.push(ws);
-  console.log(`New client connected as Player ${playerIndex + 1}`);
+io.on("connection", (socket) => {
+  console.log(`New client connected: ${socket.id}`);
 
-  ws.send(
-    JSON.stringify({ type: "playerAssigned", playerNumber: playerIndex + 1 })
-  );
+  // Assign players to available slots
+  if (!player1) {
+    player1 = socket.id;
+    console.log("Player 1 connected");
+  } else if (!player2) {
+    player2 = socket.id;
+    console.log("Player 2 connected");
+  } else {
+    console.log("Third connection rejected");
+    socket.emit("error", { message: "Only two players are allowed" });
+    socket.disconnect(); // Disconnect third client
+    return;
+  }
 
-  broadcastPlayerStatus(); // Notify all players of the updated statuses
+  // Broadcast updated statuses
+  broadcastPlayerStatus();
 
-  ws.on("close", () => {
-    clients = clients.filter((client) => client !== ws);
-    console.log(`Client disconnected`);
-    gameStarted = false;
-
-    if (clients.length < 2) {
-      console.log("Game reset due to player disconnection.");
-      broadcastPlayerStatus(); // Update statuses for all players
+  // Handle disconnection
+  socket.on("disconnect", () => {
+    console.log(`Client disconnected: ${socket.id}`);
+    if (socket.id === player1) {
+      console.log("Player 1 disconnected");
+      player1 = null;
+    } else if (socket.id === player2) {
+      console.log("Player 2 disconnected");
+      player2 = null;
     }
+    broadcastPlayerStatus();
   });
 
-  ws.on("message", (message) => {
-    const data = JSON.parse(message);
-
-    if (data.type === "startGame" && clients.length === 2 && !gameStarted) {
-      gameStarted = true;
-      console.log("Game starting...");
-      const gameId = Math.random().toString(36).substring(7); // Example game ID
-      clients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify({ type: "gameStart", gameId }));
-        }
-      });
+  // Handle start game event
+  socket.on("startGame", () => {
+    console.log("Start Game event received.");
+    if (player1 && player2) {
+      io.emit("gameStart", { gameId: new Date().getTime() }); // Broadcast game start with unique ID
+    } else {
+      console.log("Cannot start game, not enough players.");
     }
   });
 });
-
-console.log("WebSocket server running on ws://localhost:8080");
 
 // Endpoint to get random words
 app.get("/random-words", async (req, res) => {
@@ -84,7 +87,7 @@ mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log("Successfully connected to MongoDB");
-    const PORT = process.env.PORT || 3000;
+    const PORT = process.env.PORT;
     server.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
     });
