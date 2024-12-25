@@ -4,7 +4,7 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const http = require("http");
 const { Server } = require("socket.io");
-const { v4: uuidv4 } = require("uuid"); // Import uuid for generating session IDs
+const { v4: uuidv4 } = require("uuid");
 const Word = require("./src/models/Word");
 const Result = require("./src/models/Result");
 const bodyPar = require("body-parser");
@@ -68,19 +68,18 @@ const io = new Server(server, {
   },
 });
 
-// Players and Replay State
 let player1 = null;
 let player2 = null;
 let player1Score = 0;
 let player2Score = 0;
 let replayRequests = { player1: false, player2: false };
-let currentGameId = null; // Unique identifier for the current game session
+let currentGameId = null;
 let gameDuration = 30;
 let gameInterval = null;
 let gameEnded = false;
-let gracePeriodActive = false; // Indicates if the grace period is active
-let gracePeriodTimer = null; // Timer for the grace period
-const sessions = {}; // Store sessionId -> player mapping
+let gracePeriodActive = false;
+let gracePeriodTimer = null;
+const sessions = {};
 
 // Broadcast current player status to all clients
 function broadcastPlayerStatus() {
@@ -93,8 +92,6 @@ function broadcastPlayerStatus() {
 function startGameTimer(io) {
   let remainingTime = gameDuration;
   console.log(`Timer started with ${remainingTime} seconds.`);
-
-  // Clear any existing interval before starting a new one
   if (gameInterval) {
     clearInterval(gameInterval);
     gameInterval = null;
@@ -107,11 +104,11 @@ function startGameTimer(io) {
       io.emit("timeUpdate", { remainingTime });
       remainingTime--;
     } else {
-      clearInterval(gameInterval); // Stop the timer
+      clearInterval(gameInterval);
       gameInterval = null;
       console.log("Timer expired. Ending game...");
       gameEnded = true;
-      endGame(io); // End the game when the timer reaches 0
+      endGame(io);
       gameEnded = false;
     }
   }, 1000);
@@ -120,7 +117,6 @@ function startGameTimer(io) {
 function endGame(io) {
   console.log("Game over. Calculating results...");
 
-  // Determine the winner
   const winner =
     player1Score > player2Score
       ? "Player 1"
@@ -128,14 +124,12 @@ function endGame(io) {
       ? "Player 2"
       : "It's a tie!";
 
-  // Broadcast game over and final scores
   io.emit("gameOver", {
     player1Score,
     player2Score,
     winner,
   });
 
-  // Save the game result using saveGameResult
   if (gameEnded) {
     saveGameResult(currentGameId, player1Score, player2Score, winner)
       .then(() => console.log("Game result saved successfully"))
@@ -144,7 +138,6 @@ function endGame(io) {
     currentGameId = null; // Reset game ID after saving
   }
 
-  // Reset game state
   player1Score = 0;
   player2Score = 0;
   replayRequests = { player1: false, player2: false };
@@ -162,7 +155,6 @@ const saveGameResult = async (gameId, player1Score, player2Score, winner) => {
       return; // Skip saving to avoid duplication
     }
 
-    // Save the game result to MongoDB
     const result = new Result({
       gameId,
       player1Score,
@@ -184,10 +176,8 @@ io.on("connection", (socket) => {
   const sessionId = uuidv4(); // Generate a unique session ID
   console.log(`New client connected: ${socket.id}, Session ID: ${sessionId}`);
 
-  // Send session ID to the client
   socket.emit("sessionIdAssigned", { sessionId });
 
-  // Assign players to slots
   if (!player1) {
     player1 = socket.id;
     sessions[sessionId] = { playerNumber: 1, socketId: socket.id };
@@ -219,7 +209,7 @@ io.on("connection", (socket) => {
 
       // Activate grace period for 5 seconds
       gracePeriodActive = true;
-      if (gracePeriodTimer) clearTimeout(gracePeriodTimer); // Clear any existing timer
+      if (gracePeriodTimer) clearTimeout(gracePeriodTimer);
       gracePeriodTimer = setTimeout(() => {
         gracePeriodActive = false;
         console.log(
@@ -236,15 +226,11 @@ io.on("connection", (socket) => {
   // Handle Score Updates
   socket.on("scoreUpdate", ({ playerNumber, score }) => {
     console.log(`Player ${playerNumber} updated their score to ${score}`);
-
-    // Update the correct player's score
     if (playerNumber === 1) {
       player1Score = score;
     } else if (playerNumber === 2) {
       player2Score = score;
     }
-
-    // Broadcast the updated score to all players
     io.emit("scoreUpdate", { playerNumber, score });
   });
 
@@ -257,11 +243,11 @@ io.on("connection", (socket) => {
     if (socket.id === player1) {
       playerNumber = 1;
       player1 = null;
-      replayRequests.player1 = false; // Reset replay request
+      replayRequests.player1 = false;
     } else if (socket.id === player2) {
       playerNumber = 2;
       player2 = null;
-      replayRequests.player2 = false; // Reset replay request
+      replayRequests.player2 = false;
     }
 
     // Remove session mapping
@@ -275,25 +261,21 @@ io.on("connection", (socket) => {
     // End the game if no players remain
     if (!player1 && !player2 && currentGameId) {
       console.log("Both players left the game. Ending game...");
-      clearInterval(gameInterval); // Stop the timer
+      clearInterval(gameInterval);
       gameInterval = null;
       gameEnded = true;
 
-      // Use the endGame function to cleanly handle game conclusion
       endGame(io);
     }
 
     // Notify both players to leave the game
     io.emit("playerLeave", { playerNumber });
-
     // Notify about replay reset
     io.emit("replayStatus", { replayCount: 0 });
 
-    // Reset player scores for this session
     player1Score = 0;
     player2Score = 0;
 
-    // Broadcast updated player status
     broadcastPlayerStatus();
   });
 
@@ -301,14 +283,12 @@ io.on("connection", (socket) => {
   socket.on("playerReplay", async () => {
     console.log(`Replay request received from ${socket.id}`);
 
-    // Track replay requests
     if (socket.id === player1) {
       replayRequests.player1 = true;
     } else if (socket.id === player2) {
       replayRequests.player2 = true;
     }
 
-    // Broadcast the replay count to all players
     const replayCount = Object.values(replayRequests).filter(Boolean).length;
     io.emit("replayStatus", { replayCount });
     console.log(`Replay requests: ${replayCount}/2`);
@@ -317,17 +297,17 @@ io.on("connection", (socket) => {
     if (replayRequests.player1 && replayRequests.player2) {
       console.log("Both players requested a replay. Ending current game...");
 
-      clearInterval(gameInterval); // Stop the current timer
+      clearInterval(gameInterval);
       gameInterval = null;
       gameEnded = true;
 
-      endGame(io, currentGameId); // End and save the current game
+      endGame(io, currentGameId);
 
       // Reset the game state for the new match
-      currentGameId = new Date().getTime().toString(); // Generate a new unique game ID
-      replayRequests = { player1: false, player2: false }; // Reset replay requests
-      player1Score = 0; // Reset player 1 score
-      player2Score = 0; // Reset player 2 score
+      currentGameId = new Date().getTime().toString();
+      replayRequests = { player1: false, player2: false };
+      player1Score = 0;
+      player2Score = 0;
 
       // Notify players about the new game
       io.emit("gameRestart", { gameId: currentGameId });
@@ -349,12 +329,12 @@ io.on("connection", (socket) => {
       console.log("Player 1 disconnected");
       playerNumber = 1;
       player1 = null;
-      replayRequests.player1 = false; // Reset Player 1 replay request
+      replayRequests.player1 = false;
     } else if (socket.id === player2) {
       console.log("Player 2 disconnected");
       playerNumber = 2;
       player2 = null;
-      replayRequests.player2 = false; // Reset Player 2 replay request
+      replayRequests.player2 = false;
     }
 
     // Remove session mapping
@@ -369,7 +349,7 @@ io.on("connection", (socket) => {
     if (!player1 && !player2 && currentGameId) {
       if (gracePeriodActive) {
         console.log("Grace period active. Skipping endGame for now.");
-        return; // Ignore disconnections during grace period
+        return;
       }
 
       console.log("Both players disconnected. Ending game...");
@@ -378,14 +358,11 @@ io.on("connection", (socket) => {
       endGame(io);
     }
     if (playerNumber) {
-      // Notify all players about the disconnection
       io.emit("playerDisconnected", { playerNumber });
 
-      // Notify about replay reset
       const replayCount = Object.values(replayRequests).filter(Boolean).length;
       io.emit("replayStatus", { replayCount });
 
-      // Broadcast updated player statuses
       broadcastPlayerStatus();
 
       console.log(`Player ${playerNumber} replay request cleared.`);
