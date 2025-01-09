@@ -15,6 +15,9 @@ const server = http.createServer(app);
 app.use(cors());
 app.use(bodyPar());
 
+const userRouter = require("./routes/user.api");
+app.use("/api", userRouter);
+
 // Endpoint to get random words
 app.get("/random-words", async (req, res) => {
   try {
@@ -25,42 +28,21 @@ app.get("/random-words", async (req, res) => {
   }
 });
 
+app.get("/");
+
 // Connect to MongoDB and start the server
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log("Successfully connected to MongoDB");
-    const PORT = process.env.PORT;
-    server.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
-    });
-  })
-  .catch((err) => {
-    console.log(err);
-  });
-
-// app.post("/save-result", async (req, res) => {
-//   const { gameId, player1Score, player2Score, winner } = req.body;
-
-//   try {
-//     const result = new Result({
-//       gameId,
-//       player1Score,
-//       player2Score,
-//       winner,
+// mongoose
+//   .connect(process.env.MONGO_URI)
+//   .then(() => {
+//     console.log("Successfully connected to MongoDB");
+//     const PORT = process.env.PORT;
+//     server.listen(PORT, () => {
+//       console.log(`Server is running on port ${PORT}`);
 //     });
-//     await result.save();
-//     res.status(200).json({ message: "Match result saved successfully" });
-//   } catch (error) {
-//     if (error.code === 11000) {
-//       // Duplicate key error
-//       res.status(409).json({ message: "Result for this game already exists." });
-//     } else {
-//       console.error("Error saving game result:", error);
-//       res.status(500).json({ message: "Failed to save match result", error });
-//     }
-//   }
-// });
+//   })
+//   .catch((err) => {
+//     console.log(err);
+//   });
 
 const io = new Server(server, {
   cors: {
