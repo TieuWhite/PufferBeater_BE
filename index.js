@@ -8,6 +8,7 @@ const { v4: uuidv4 } = require("uuid");
 const Word = require("./src/models/Word");
 const Result = require("./src/models/Result");
 const bodyPar = require("body-parser");
+const userRouter = require("./routes/user.api");
 
 const app = express();
 const server = http.createServer(app);
@@ -15,7 +16,6 @@ const server = http.createServer(app);
 app.use(cors());
 app.use(bodyPar());
 
-const userRouter = require("./routes/user.api");
 app.use("/api", userRouter);
 
 // Endpoint to get random words
@@ -31,18 +31,24 @@ app.get("/random-words", async (req, res) => {
 app.get("/");
 
 // Connect to MongoDB and start the server
-// mongoose
-//   .connect(process.env.MONGO_URI)
-//   .then(() => {
-//     console.log("Successfully connected to MongoDB");
-//     const PORT = process.env.PORT;
-//     server.listen(PORT, () => {
-//       console.log(`Server is running on port ${PORT}`);
-//     });
-//   })
-//   .catch((err) => {
-//     console.log(err);
-//   });
+mongoose
+  .connect(process.env.MONGO_URI)
+  .then(() => {
+    const PORT = 5000;
+    server.listen(PORT, () => {
+      console.log(`MongoDB is running on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.log(err);
+  });
+
+app.use((err, req, res, next) => {
+  console.error("Error:", err.message);
+  res.status(err.status || 500).json({
+    error: err.message || "Something happened...",
+  });
+});
 
 const io = new Server(server, {
   cors: {
