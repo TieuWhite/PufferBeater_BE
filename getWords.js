@@ -3,11 +3,11 @@ const { faker } = require("@faker-js/faker");
 
 const generateWords = () => {
   const uniqueWords = new Set();
-  const count = 2000;
+  const count = 100;
 
   while (uniqueWords.size < count) {
     const word = faker.word.sample();
-    if (word.length >= 5 && word.length <= 10) {
+    if (word.length >= 5 && word.length <= 15) {
       uniqueWords.add(word);
     }
   }
@@ -15,6 +15,4 @@ const generateWords = () => {
   return Array.from(uniqueWords).map((word) => ({ word }));
 };
 
-const words = generateWords();
-fs.writeFileSync("db.json", JSON.stringify(words, null, 2), "utf-8");
-console.log("Unique words saved to db.json");
+module.exports = { generateWords };
