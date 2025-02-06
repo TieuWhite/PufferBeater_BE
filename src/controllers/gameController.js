@@ -1,6 +1,7 @@
 const { startGameTimer } = require("./timeControllers");
 const { saveGameResult } = require("../utils/saveGameResult");
 const User = require("../models/User");
+const BE_URL = process.env.BE_URL;
 
 let player1 = null;
 let player2 = null;
@@ -10,6 +11,7 @@ let replayRequests = { player1: false, player2: false };
 let gameInterval = null;
 let gracePeriodActive = false;
 let gracePeriodTimer = null;
+let gameStarted = false;
 const sessions = {};
 
 async function handleConnection(socket, io) {
@@ -57,6 +59,7 @@ async function handleConnection(socket, io) {
       socket.emit("playerAssigned", { playerNumber: 2, mongoUserId, name });
     } else {
       console.log("Third connection rejected");
+
       socket.emit("full", { message: "Only two players are allowed." });
       socket.disconnect();
     }
@@ -84,15 +87,23 @@ function handleStartGame(io) {
   }
 }
 
+async function handleWordList(io) {
+  try {
+    const response = await fetch(`${BE_URL}/api/words/random`);
+    const wordList = await response.json();
+
+    io.emit("wordList", wordList);
+  } catch (err) {
+    console.log(err);
+  }
+}
+
 function handleScoreUpdate(io, { playerNumber, score }) {
   if (playerNumber === 1) {
     player1Score = score;
   } else if (playerNumber === 2) {
     player2Score = score;
   }
-
-  console.log(`playerNum: ${playerNumber}`);
-  console.log(`score: ${score}`);
 
   io.emit("scoreUpdate", { playerNumber, score });
 }
@@ -121,7 +132,6 @@ function handleDisconnection(socket, io) {
   console.log(`Client disconnected: ${socket.id}`);
   let playerNumber = null;
 
-  // Identify which player is disconnecting
   if (socket.id === player1) {
     playerNumber = 1;
     player1 = null;
@@ -136,16 +146,18 @@ function handleDisconnection(socket, io) {
   const session = Object.entries(sessions).find(
     ([, value]) => value.socketId === socket.id
   );
+
   if (session) {
     delete sessions[session[0]];
     console.log(`Removed session for player ${playerNumber}:`, session[0]);
   }
 
-  if (!player1 && !player2) {
+  if (!player1 && !player2 && !gameStarted) {
     if (gracePeriodActive) {
-      console.log("Grace period active. Skipping game termination.");
+      console.log("Grace period active. Skipping game.");
       return;
     }
+
     console.log("Both players disconnected. Ending game...");
     clearInterval(gameInterval);
     gameInterval = null;
@@ -154,16 +166,13 @@ function handleDisconnection(socket, io) {
       s.disconnect(true);
     });
 
-    endGame(io);
     disconnectState();
+    endGame(io);
   }
 
-  // Notify other clients about the player leaving
   io.emit("playerLeave", { playerNumber });
 
-  // Reset game state and update player statuses
   resetGameState();
-  disconnectState();
   broadcastPlayerStatus(io);
 
   console.log(`Player ${playerNumber} has been disconnected.`);
@@ -198,7 +207,6 @@ function resetGameState() {
   player1Score = 0;
   player2Score = 0;
   replayRequests = { player1: false, player2: false };
-  console.log("Game state reset.");
 }
 
 function disconnectState() {
@@ -216,4 +224,5 @@ module.exports = {
   handleScoreUpdate,
   handleDisconnection,
   handleReplayRequest,
+  handleWordList,
 };

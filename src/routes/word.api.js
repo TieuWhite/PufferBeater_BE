@@ -1,6 +1,6 @@
 const express = require("express");
 
-const { generateWords } = require("../../getWords");
+const { generateWords } = require("../utils/getWords");
 const router = express.Router();
 
 router.get("/random", async (req, res) => {

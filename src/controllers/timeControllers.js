@@ -1,5 +1,5 @@
 function startGameTimer(io, onTimerEnd) {
-  let remainingTime = 15; // Set game duration
+  let remainingTime = 30; // Set game duration
   console.log("Game timer started.");
 
   const gameInterval = setInterval(() => {

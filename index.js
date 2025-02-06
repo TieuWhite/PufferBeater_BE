@@ -12,6 +12,7 @@ const {
   handleScoreUpdate,
   handleDisconnection,
   handleReplayRequest,
+  handleWordList,
 } = require("./src/controllers/gameController");
 
 const app = express();
@@ -43,6 +44,7 @@ io.on("connection", (socket) => {
   socket.on("scoreUpdate", (data) => {
     handleScoreUpdate(io, data);
   });
+  socket.on("wordList", () => handleWordList(io, socket));
   socket.on("playerLeave", () => handleDisconnection(socket, io));
   socket.on("playerReplay", () => handleReplayRequest(socket, io));
 });
