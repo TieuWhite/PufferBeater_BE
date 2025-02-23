@@ -22,10 +22,6 @@ const bodyPar = require("body-parser");
 app.use(cors());
 app.use(bodyPar());
 
-app.get("/", (req, res) => {
-  res.send("Hi");
-});
-
 app.use("/api/users", userRouter);
 app.use("/api/words", wordRouter);
 app.use("/api/results", resultRouter);
